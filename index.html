@@ -1,0 +1,2449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmoDetect - Real-time Emotion Analysis</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #6C63FF;
+            --secondary: #4A44C6;
+            --accent: #FF6584;
+            --success: #36D1DC;
+            --background: #1A1A2E;
+            --card-bg: #16213E;
+            --text: #FFFFFF;
+            --text-secondary: #B8B8D1;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        
+        .logo i {
+            color: var(--primary);
+        }
+        
+        .user-controls {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border-radius: 50px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(108, 99, 255, 0.4);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            color: var(--text);
+            border: 2px solid var(--primary);
+        }
+        
+        .btn-outline:hover {
+            background: rgba(108, 99, 255, 0.1);
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+        }
+        
+        .video-section {
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            border-radius: 15px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0F3460, #1A1A2E);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .video-container.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            border-radius: 0;
+            background: #000;
+        }
+        
+        .video-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+        
+        .video-placeholder {
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        .video-placeholder i {
+            font-size: 80px;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+        
+        .emotion-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(22, 33, 62, 0.8);
+            padding: 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(108, 99, 255, 0.3);
+        }
+        
+        .current-emotion {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .emotion-probability {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+        
+        .recording-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(244, 67, 54, 0.9);
+            padding: 8px 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .recording-time {
+            font-family: monospace;
+        }
+        
+        .audio-indicator {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(22, 33, 62, 0.8);
+            padding: 10px 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(108, 99, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        
+        .audio-level {
+            width: 60px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .audio-level-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: var(--card-bg);
+            border: 2px solid var(--primary);
+            color: var(--text);
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .control-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 20px rgba(108, 99, 255, 0.5);
+        }
+        
+        .control-btn.recording {
+            background: rgba(244, 67, 54, 0.2);
+            border-color: #F44336;
+            color: #F44336;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .control-btn.muted {
+            background: rgba(244, 67, 54, 0.2);
+            border-color: #F44336;
+            color: #F44336;
+        }
+        
+        .control-btn:hover {
+            transform: scale(1.1);
+        }
+        
+        .stats-section {
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .section-title {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .emotion-chart {
+            height: 200px;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 15px;
+        }
+        
+        .emotion-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .emotion-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .emotion-item:hover {
+            background: rgba(108, 99, 255, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .emotion-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+        
+        .emotion-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+        }
+        
+        .emotion-name {
+            font-weight: 600;
+            min-width: 100px;
+        }
+        
+        .emotion-value {
+            font-weight: 700;
+            font-size: 18px;
+            min-width: 50px;
+            text-align: right;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow: hidden;
+            flex: 1;
+        }
+        
+        .progress {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .history-section {
+            margin-top: 30px;
+        }
+        
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .history-emotion {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .history-time {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        /* Recording Modal */
+        .recording-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            overflow-y: auto;
+        }
+        
+        .recording-content {
+            position: relative;
+            background: var(--card-bg);
+            margin: 40px auto;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 95%;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            animation: modalFadeIn 0.3s ease;
+        }
+        
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .recording-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .recording-title {
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #F44336;
+        }
+        
+        .close-recording {
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .close-recording:hover {
+            color: var(--accent);
+            transform: scale(1.1);
+        }
+        
+        .recording-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        
+        .recording-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .recording-item:hover {
+            background: rgba(108, 99, 255, 0.1);
+        }
+        
+        .recording-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex: 1;
+        }
+        
+        .recording-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            background: rgba(244, 67, 54, 0.2);
+            color: #F44336;
+        }
+        
+        .recording-details {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .recording-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .recording-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .recording-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .action-btn:hover {
+            background: var(--primary);
+            transform: scale(1.1);
+        }
+        
+        /* Analytics Modal */
+        .analytics-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            overflow-y: auto;
+        }
+        
+        .analytics-content {
+            position: relative;
+            background: var(--card-bg);
+            margin: 40px auto;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 1200px;
+            width: 95%;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            animation: modalFadeIn 0.3s ease;
+        }
+        
+        .analytics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .analytics-title {
+            font-size: 28px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .close-analytics {
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .close-analytics:hover {
+            color: var(--accent);
+            transform: scale(1.1);
+        }
+        
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .analytics-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .analytics-card.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .analytics-card-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--primary);
+        }
+        
+        .analytics-chart-container {
+            height: 300px;
+            position: relative;
+        }
+        
+        .analytics-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .analytics-table th, .analytics-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .analytics-table th {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        
+        .analytics-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .analytics-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+        
+        /* Animation for real-time updates */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        /* Camera permission message */
+        .permission-message {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(22, 33, 62, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(108, 99, 255, 0.3);
+            max-width: 80%;
+        }
+        
+        .permission-message i {
+            font-size: 40px;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+        
+        /* Audio permission message */
+        .audio-permission-message {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(22, 33, 62, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(108, 99, 255, 0.3);
+            max-width: 80%;
+        }
+        
+        .audio-permission-message i {
+            font-size: 40px;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+        
+        /* Fullscreen exit button */
+        .exit-fullscreen {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(22, 33, 62, 0.8);
+            border: 2px solid var(--primary);
+            color: var(--text);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10000;
+            transition: all 0.3s ease;
+        }
+        
+        .exit-fullscreen:hover {
+            background: var(--primary);
+            transform: scale(1.1);
+        }
+        
+        /* Processing indicator */
+        .processing-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(22, 33, 62, 0.8);
+            padding: 10px 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(108, 99, 255, 0.3);
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            z-index: 100;
+        }
+        
+        .processing-indicator i {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Status message styles */
+        .status-message {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(22, 33, 62, 0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(108, 99, 255, 0.3);
+            display: none;
+            z-index: 100;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .status-message.success {
+            border-color: #36D1DC;
+            color: #36D1DC;
+        }
+        
+        .status-message.error {
+            border-color: #F44336;
+            color: #F44336;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 1100px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .video-container {
+                height: 400px;
+            }
+            
+            .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .video-container {
+                height: 300px;
+            }
+            
+            .controls {
+                flex-wrap: wrap;
+            }
+            
+            .analytics-content {
+                padding: 20px;
+                margin: 20px auto;
+            }
+            
+            .analytics-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-brain"></i>
+                <span>EmoDetect</span>
+            </div>
+            <div class="user-controls">
+                <button class="btn btn-outline">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+                <button class="btn btn-primary">
+                    <i class="fas fa-user"></i> My Account
+                </button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="video-section">
+                <div class="video-container" id="video-container">
+                    <div class="video-placeholder">
+                        <i class="fas fa-video"></i>
+                        <p>Video feed will appear here when started</p>
+                    </div>
+                    
+                    <!-- Camera permission message -->
+                    <div class="permission-message" id="permission-message">
+                        <i class="fas fa-camera"></i>
+                        <h3>Camera Access Required</h3>
+                        <p>Please allow camera access to use the emotion detection feature.</p>
+                        <button class="btn btn-primary" id="retry-camera" style="margin-top: 15px;">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                    
+                    <!-- Audio permission message -->
+                    <div class="audio-permission-message" id="audio-permission-message">
+                        <i class="fas fa-microphone"></i>
+                        <h3>Microphone Access Required</h3>
+                        <p>Please allow microphone access to use the audio analysis feature.</p>
+                        <button class="btn btn-primary" id="retry-audio" style="margin-top: 15px;">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                    
+                    <!-- Processing indicator -->
+                    <div class="processing-indicator" id="processing-indicator">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Processing...</span>
+                    </div>
+                    
+                    <!-- Status message -->
+                    <div class="status-message" id="status-message"></div>
+                    
+                    <!-- Recording indicator -->
+                    <div class="recording-indicator" id="recording-indicator">
+                        <i class="fas fa-circle"></i>
+                        <span>REC</span>
+                        <span class="recording-time" id="recording-time">00:00</span>
+                    </div>
+                    
+                    <!-- Video feed element -->
+                    <video class="video-feed" id="video-feed" autoplay playsinline muted></video>
+                    
+                    <div class="emotion-overlay">
+                        <div class="current-emotion">Neutral</div>
+                        <div class="emotion-probability">Confidence: 92%</div>
+                    </div>
+                    
+                    <div class="audio-indicator" id="audio-indicator" style="display: none;">
+                        <i class="fas fa-microphone"></i>
+                        <span>Audio Level:</span>
+                        <div class="audio-level">
+                            <div class="audio-level-fill" id="audio-level-fill"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-btn" id="start-camera">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <div class="control-btn" id="toggle-audio">
+                        <i class="fas fa-microphone"></i>
+                    </div>
+                    <div class="control-btn" id="record-session">
+                        <i class="fas fa-record-vinyl"></i>
+                    </div>
+                    <div class="control-btn" id="analyze-mode">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="control-btn" id="fullscreen">
+                        <i class="fas fa-expand"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stats-section">
+                <div class="section-title">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Emotion Analysis</span>
+                </div>
+                
+                <div class="emotion-chart">
+                    <!-- Emotion chart would be implemented with a charting library -->
+                    <div style="display: flex; justify-content: center; align-items: center; height: 100%; color: var(--text-secondary);">
+                        Real-time emotion chart visualization
+                    </div>
+                </div>
+                
+                <div class="emotion-list">
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(255, 101, 132, 0.2); color: var(--accent);">
+                                <i class="fas fa-laugh-beam"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Happy</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 65%; background-color: var(--accent);"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">65%</div>
+                    </div>
+                    
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(54, 209, 220, 0.2); color: var(--success);">
+                                <i class="fas fa-meh"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Neutral</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 92%; background-color: var(--success);"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">92%</div>
+                    </div>
+                    
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(108, 99, 255, 0.2); color: var(--primary);">
+                                <i class="fas fa-frown"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Sad</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 12%; background-color: var(--primary);"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">12%</div>
+                    </div>
+                    
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(255, 193, 7, 0.2); color: #FFC107;">
+                                <i class="fas fa-angry"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Angry</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 8%; background-color: #FFC107;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">8%</div>
+                    </div>
+                    
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(156, 39, 176, 0.2); color: #9C27B0;">
+                                <i class="fas fa-surprise"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Surprised</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 23%; background-color: #9C27B0;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">23%</div>
+                    </div>
+                    
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(76, 175, 80, 0.2); color: #4CAF50;">
+                                <i class="fas fa-grimace"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Disgusted</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 5%; background-color: #4CAF50;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">5%</div>
+                    </div>
+                    
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(255, 152, 0, 0.2); color: #FF9800;">
+                                <i class="fas fa-meh-rolling-eyes"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Contempt</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 3%; background-color: #FF9800;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">3%</div>
+                    </div>
+                    
+                    <div class="emotion-item">
+                        <div class="emotion-info">
+                            <div class="emotion-icon" style="background-color: rgba(244, 67, 54, 0.2); color: #F44336;">
+                                <i class="fas fa-surprise"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="emotion-name">Fear</div>
+                                <div class="progress-bar">
+                                    <div class="progress" style="width: 7%; background-color: #F44336;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="emotion-value">7%</div>
+                    </div>
+                </div>
+                
+                <div class="history-section">
+                    <div class="section-title">
+                        <i class="fas fa-history"></i>
+                        <span>Emotion History</span>
+                    </div>
+                    
+                    <div class="history-list">
+                        <div class="history-item">
+                            <div class="history-emotion">
+                                <i class="fas fa-laugh-beam" style="color: var(--accent);"></i>
+                                <span>Happy</span>
+                            </div>
+                            <div class="history-time">2 minutes ago</div>
+                        </div>
+                        
+                        <div class="history-item">
+                            <div class="history-emotion">
+                                <i class="fas fa-meh" style="color: var(--success);"></i>
+                                <span>Neutral</span>
+                            </div>
+                            <div class="history-time">5 minutes ago</div>
+                        </div>
+                        
+                        <div class="history-item">
+                            <div class="history-emotion">
+                                <i class="fas fa-frown" style="color: var(--primary);"></i>
+                                <span>Sad</span>
+                            </div>
+                            <div class="history-time">8 minutes ago</div>
+                        </div>
+                        
+                        <div class="history-item">
+                            <div class="history-emotion">
+                                <i class="fas fa-laugh-beam" style="color: var(--accent);"></i>
+                                <span>Happy</span>
+                            </div>
+                            <div class="history-time">12 minutes ago</div>
+                        </div>
+                        
+                        <div class="history-item">
+                            <div class="history-emotion">
+                                <i class="fas fa-surprise" style="color: #9C27B0;"></i>
+                                <span>Surprised</span>
+                            </div>
+                            <div class="history-time">15 minutes ago</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recording Modal -->
+    <div class="recording-modal" id="recording-modal">
+        <div class="recording-content">
+            <div class="recording-header">
+                <h2 class="recording-title">
+                    <i class="fas fa-record-vinyl"></i>
+                    Session Recordings
+                </h2>
+                <button class="close-recording" id="close-recording">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="recording-list" id="recording-list">
+                <!-- Recordings will be populated here -->
+                <div class="recording-item">
+                    <div class="recording-info">
+                        <div class="recording-icon">
+                            <i class="fas fa-video"></i>
+                        </div>
+                        <div class="recording-details">
+                            <div class="recording-name">Session_2023_11_15_14_30</div>
+                            <div class="recording-meta">Duration: 05:23 | Date: Nov 15, 2023</div>
+                        </div>
+                    </div>
+                    <div class="recording-actions">
+                        <button class="action-btn" title="Play">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="action-btn" title="Download">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="action-btn" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 15px; margin-top: 20px;">
+                <button class="btn btn-outline" id="delete-all-recordings">
+                    <i class="fas fa-trash"></i> Delete All
+                </button>
+                <button class="btn btn-primary" id="open-recordings-folder">
+                    <i class="fas fa-folder-open"></i> Open Folder
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Modal -->
+    <div class="analytics-modal" id="analytics-modal">
+        <div class="analytics-content">
+            <div class="analytics-header">
+                <h2 class="analytics-title">
+                    <i class="fas fa-chart-bar"></i>
+                    Emotion Analytics Dashboard
+                </h2>
+                <button class="close-analytics" id="close-analytics">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <h3 class="analytics-card-title">
+                        <i class="fas fa-chart-pie"></i>
+                        Emotion Distribution
+                    </h3>
+                    <div class="analytics-chart-container">
+                        <canvas id="emotion-distribution-chart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3 class="analytics-card-title">
+                        <i class="fas fa-chart-line"></i>
+                        Emotion Trends
+                    </h3>
+                    <div class="analytics-chart-container">
+                        <canvas id="emotion-trends-chart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3 class="analytics-card-title">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Session Statistics
+                    </h3>
+                    <div class="analytics-stats">
+                        <div class="stat-item">
+                            <div class="stat-value" id="total-detections">0</div>
+                            <div class="stat-label">Total Detections</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="session-duration">0m</div>
+                            <div class="stat-label">Session Duration</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="dominant-emotion">-</div>
+                            <div class="stat-label">Dominant Emotion</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="avg-confidence">0%</div>
+                            <div class="stat-label">Avg. Confidence</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3 class="analytics-card-title">
+                        <i class="fas fa-clock"></i>
+                        Time Analysis
+                    </h3>
+                    <div class="analytics-chart-container">
+                        <canvas id="time-analysis-chart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="analytics-card full-width">
+                    <h3 class="analytics-card-title">
+                        <i class="fas fa-table"></i>
+                        Detailed Emotion Data
+                    </h3>
+                    <table class="analytics-table">
+                        <thead>
+                            <tr>
+                                <th>Emotion</th>
+                                <th>Frequency</th>
+                                <th>Average Confidence</th>
+                                <th>Duration</th>
+                                <th>Peak Value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="emotion-data-table">
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 15px; margin-top: 20px;">
+                <button class="btn btn-outline" id="export-data">
+                    <i class="fas fa-download"></i> Export Data
+                </button>
+                <button class="btn btn-primary" id="generate-report">
+                    <i class="fas fa-file-pdf"></i> Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exit Fullscreen Button -->
+    <div class="exit-fullscreen" id="exit-fullscreen">
+        <i class="fas fa-compress"></i>
+    </div>
+
+    <script>
+        // Emotion data with all 8 emotions
+        const emotions = ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprised', 'Disgusted', 'Contempt', 'Fear'];
+        const emotionColors = {
+            'Happy': '#FF6584',
+            'Neutral': '#36D1DC',
+            'Sad': '#6C63FF',
+            'Angry': '#FFC107',
+            'Surprised': '#9C27B0',
+            'Disgusted': '#4CAF50',
+            'Contempt': '#FF9800',
+            'Fear': '#F44336'
+        };
+        
+        const emotionIcons = {
+            'Happy': 'fas fa-laugh-beam',
+            'Neutral': 'fas fa-meh',
+            'Sad': 'fas fa-frown',
+            'Angry': 'fas fa-angry',
+            'Surprised': 'fas fa-surprise',
+            'Disgusted': 'fas fa-grimace',
+            'Contempt': 'fas fa-meh-rolling-eyes',
+            'Fear': 'fas fa-surprise'
+        };
+
+        // Analytics data storage
+        let analyticsData = {
+            emotionCounts: {},
+            emotionConfidences: {},
+            emotionTimestamps: [],
+            sessionStartTime: null,
+            totalDetections: 0
+        };
+
+        // Initialize analytics data
+        emotions.forEach(emotion => {
+            analyticsData.emotionCounts[emotion] = 0;
+            analyticsData.emotionConfidences[emotion] = [];
+        });
+
+        // Camera and audio functionality - SEPARATED
+        let videoStream = null;
+        let audioStream = null;
+        let isCameraActive = false;
+        let isAudioActive = false;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let javascriptNode = null;
+        let isFullscreen = false;
+        
+        // Recording functionality
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let recordingStartTime = null;
+        let recordingTimer = null;
+        let recordings = [];
+        
+        // Image capture for AI processing
+        let captureCanvas = null;
+        let captureContext = null;
+        let captureInterval = null;
+        let isProcessing = false;
+        let processingQueue = [];
+        let maxQueueSize = 5; // Limit queue to prevent memory issues
+        
+        // FastAPI server configuration
+        const API_BASE_URL = 'http://localhost:8000'; // Update with your FastAPI server URL
+        const API_ENDPOINT = '/process-image';
+        
+        // DOM Elements
+        const videoFeed = document.getElementById('video-feed');
+        const videoContainer = document.getElementById('video-container');
+        const videoPlaceholder = document.querySelector('.video-placeholder');
+        const permissionMessage = document.getElementById('permission-message');
+        const audioPermissionMessage = document.getElementById('audio-permission-message');
+        const recordingIndicator = document.getElementById('recording-indicator');
+        const recordingTime = document.getElementById('recording-time');
+        const startCameraBtn = document.getElementById('start-camera');
+        const retryCameraBtn = document.getElementById('retry-camera');
+        const retryAudioBtn = document.getElementById('retry-audio');
+        const toggleAudioBtn = document.getElementById('toggle-audio');
+        const recordSessionBtn = document.getElementById('record-session');
+        const analyzeModeBtn = document.getElementById('analyze-mode');
+        const fullscreenBtn = document.getElementById('fullscreen');
+        const exitFullscreenBtn = document.getElementById('exit-fullscreen');
+        const recordingModal = document.getElementById('recording-modal');
+        const closeRecordingBtn = document.getElementById('close-recording');
+        const recordingList = document.getElementById('recording-list');
+        const deleteAllRecordingsBtn = document.getElementById('delete-all-recordings');
+        const openRecordingsFolderBtn = document.getElementById('open-recordings-folder');
+        const analyticsModal = document.getElementById('analytics-modal');
+        const closeAnalyticsBtn = document.getElementById('close-analytics');
+        const exportDataBtn = document.getElementById('export-data');
+        const generateReportBtn = document.getElementById('generate-report');
+        const audioIndicator = document.getElementById('audio-indicator');
+        const audioLevelFill = document.getElementById('audio-level-fill');
+        const processingIndicator = document.getElementById('processing-indicator');
+        const statusMessage = document.getElementById('status-message');
+        
+        // Initialize capture canvas for 96x96 image capture
+        function initCaptureCanvas() {
+            captureCanvas = document.createElement('canvas');
+            captureCanvas.width = 96;
+            captureCanvas.height = 96;
+            captureContext = captureCanvas.getContext('2d');
+        }
+        
+        // Start capturing images during recording
+        function startImageCapture() {
+            if (!isCameraActive) return;
+            
+            // Clear any existing interval
+            if (captureInterval) {
+                clearInterval(captureInterval);
+            }
+            
+            // Start capturing images every 2 seconds (adjust as needed)
+            captureInterval = setInterval(() => {
+                if (isRecording && !isProcessing && processingQueue.length < maxQueueSize) {
+                    captureAndProcessImage();
+                }
+            }, 2000); // Capture every 2 seconds
+        }
+        
+        // Stop image capture
+        function stopImageCapture() {
+            if (captureInterval) {
+                clearInterval(captureInterval);
+                captureInterval = null;
+            }
+        }
+        
+        // Capture image from video and process it
+        function captureAndProcessImage() {
+            if (!captureCanvas || !captureContext || !videoFeed.videoWidth) return;
+            
+            try {
+                // Draw current video frame to canvas at 96x96 resolution
+                captureContext.drawImage(videoFeed, 0, 0, 96, 96);
+                
+                // Convert canvas to blob
+                captureCanvas.toBlob((blob) => {
+                    if (blob) {
+                        // Add to processing queue
+                        processingQueue.push(blob);
+                        
+                        // Process the queue if not already processing
+                        if (!isProcessing) {
+                            processNextImage();
+                        }
+                    }
+                }, 'image/jpeg', 0.8); // JPEG format with 80% quality
+            } catch (error) {
+                console.error('Error capturing image:', error);
+            }
+        }
+        
+        // Process the next image in the queue
+       // Process the next image in the queue
+async function processNextImage() {
+    if (processingQueue.length === 0 || isProcessing) return;
+    
+    isProcessing = true;
+    processingIndicator.style.display = 'flex';
+    
+    const imageBlob = processingQueue.shift();
+    
+    try {
+        // Create FormData to send the image
+        const formData = new FormData();
+        formData.append('file', imageBlob, 'capture.jpg');
+        
+        // Send to FastAPI server - try with trailing slash
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINT}/`, {
+            method: 'POST',
+            body: formData
+            // Don't set Content-Type header - let browser set it with boundary
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        // Handle the AI processing result
+        handleAIResult(result);
+        
+        // Show success message
+        showStatusMessage('Image processed successfully', 'success');
+        
+    } catch (error) {
+        console.error('Error sending image to server:', error);
+        showStatusMessage('Failed to process image', 'error');
+        
+        // If error is 422, it might be a format issue - try alternative approach
+        if (error.message.includes('422')) {
+            console.log('Trying alternative image format...');
+            // We'll implement fallback in the server instead
+        }
+    } finally {
+        isProcessing = false;
+        processingIndicator.style.display = 'none';
+        
+        // Process next image in queue if any
+        if (processingQueue.length > 0) {
+            setTimeout(processNextImage, 100);
+        }
+    }
+}
+        
+       // Handle the AI processing result from FastAPI
+function handleAIResult(result) {
+    console.log('🔄 handleAIResult called with:', result);
+    
+    // Handle array format: ["sad", 99] or ["sad", 0, 99]
+    if (Array.isArray(result) && result.length >= 2) {
+        let emotion, confidenceValue;
+        
+        // Determine the array format
+        if (result.length === 2) {
+            // Format: ["sad", 99]
+            emotion = result[0];
+            confidenceValue = result[1];
+        } else if (result.length === 3) {
+            // Format: ["sad", 0, 99] - the confidence is at index 2
+            emotion = result[0];
+            confidenceValue = result[2];
+        }
+        
+        console.log('✅ Parsed - Emotion:', emotion, 'Confidence:', confidenceValue);
+        
+        // Update main emotion display
+        updateMainEmotionDisplay(emotion, confidenceValue);
+        
+        // Update all emotion progress bars
+        updateAllEmotionBars(emotion, confidenceValue);
+        
+        // Add to history
+        addToHistory(emotion);
+        
+    } else {
+        console.error('❌ Unexpected result format:', result);
+        // Fallback to random values for testing
+        const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
+        const randomConfidence = Math.floor(Math.random() * 100);
+        console.log('🎲 Using random values:', randomEmotion, randomConfidence);
+        updateMainEmotionDisplay(randomEmotion, randomConfidence);
+        updateAllEmotionBars(randomEmotion, randomConfidence);
+        addToHistory(randomEmotion);
+        return;
+    }
+    
+    // Add visual feedback
+    const emotionOverlay = document.querySelector('.emotion-overlay');
+    emotionOverlay.classList.add('pulse');
+    setTimeout(() => {
+        emotionOverlay.classList.remove('pulse');
+    }, 500);
+    
+    console.log('✅ Dashboard updated successfully');
+}
+
+// Update main emotion display at the top
+function updateMainEmotionDisplay(emotion, confidencePercent) {
+    const currentEmotionElement = document.querySelector('.current-emotion');
+    const emotionProbabilityElement = document.querySelector('.emotion-probability');
+    
+    // Validate inputs
+    if (!emotion || confidencePercent === undefined || confidencePercent === null) {
+        console.error('❌ Invalid data for display:', { emotion, confidencePercent });
+        emotion = emotion || 'Unknown';
+        confidencePercent = confidencePercent || 0;
+    }
+    
+    currentEmotionElement.textContent = emotion;
+    currentEmotionElement.style.color = emotionColors[emotion] || '#FFFFFF';
+    emotionProbabilityElement.textContent = `Confidence: ${confidencePercent}%`;
+    
+    // Update analytics data
+    analyticsData.emotionCounts[emotion] = (analyticsData.emotionCounts[emotion] || 0) + 1;
+    analyticsData.emotionConfidences[emotion] = analyticsData.emotionConfidences[emotion] || [];
+    analyticsData.emotionConfidences[emotion].push(confidencePercent);
+    analyticsData.emotionTimestamps.push({
+        emotion: emotion,
+        confidence: confidencePercent,
+        timestamp: new Date()
+    });
+    analyticsData.totalDetections++;
+}
+
+// Update all emotion progress bars
+function updateAllEmotionBars(detectedEmotion, detectedConfidence) {
+    document.querySelectorAll('.emotion-item').forEach(item => {
+        const emotionName = item.querySelector('.emotion-name').textContent;
+        
+        if (emotionName === detectedEmotion) {
+            // Update the detected emotion with actual confidence
+            updateEmotionItem(item, emotionName, detectedConfidence);
+        } else {
+            // For other emotions, generate lower random values
+            const randomConfidence = Math.floor(Math.random() * 40); // 0-39%
+            updateEmotionItem(item, emotionName, randomConfidence);
+        }
+    });
+}
+
+// Update individual emotion item
+function updateEmotionItem(item, emotionName, confidence) {
+    // Ensure confidence is a valid number
+    const validConfidence = Math.max(0, Math.min(100, Number(confidence) || 0));
+    
+    item.querySelector('.emotion-value').textContent = `${validConfidence}%`;
+    
+    const progressBar = item.querySelector('.progress');
+    progressBar.style.width = `${validConfidence}%`;
+    progressBar.style.backgroundColor = emotionColors[emotionName] || '#6C63FF';
+    
+    // Update the icon color to match
+    const icon = item.querySelector('.emotion-icon');
+    if (icon) {
+        icon.style.color = emotionColors[emotionName] || '#6C63FF';
+    }
+}
+
+// Helper function to add emotion to history
+function addToHistory(emotion) {
+    const historyList = document.querySelector('.history-list');
+    const newHistoryItem = document.createElement('div');
+    newHistoryItem.className = 'history-item';
+    newHistoryItem.innerHTML = `
+        <div class="history-emotion">
+            <i class="${emotionIcons[emotion] || 'fas fa-meh'}" style="color: ${emotionColors[emotion] || '#FFFFFF'}"></i>
+            <span>${emotion}</span>
+        </div>
+        <div class="history-time">Just now</div>
+    `;
+    
+    // Add to the top of the history
+    historyList.insertBefore(newHistoryItem, historyList.firstChild);
+    
+    // Limit history to 10 items
+    if (historyList.children.length > 10) {
+        historyList.removeChild(historyList.lastChild);
+    }
+    
+    // Update timestamps for existing items
+    updateHistoryTimestamps();
+}
+
+// Helper function to update history timestamps
+function updateHistoryTimestamps() {
+    const historyItems = document.querySelectorAll('.history-item');
+    
+    historyItems.forEach((item, index) => {
+        if (index === 0) return; // Skip the first item (already "Just now")
+        
+        const timeElement = item.querySelector('.history-time');
+        const minutesAgo = index;
+        
+        if (minutesAgo === 1) {
+            timeElement.textContent = '1 minute ago';
+        } else {
+            timeElement.textContent = `${minutesAgo} minutes ago`;
+        }
+    });
+}
+        
+        // Request camera access (VIDEO ONLY)
+        async function startCamera() {
+            try {
+                // Request camera access (video only)
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user' 
+                    }, 
+                    audio: false 
+                });
+                
+                // Set the video source to the camera stream
+                videoFeed.srcObject = videoStream;
+                videoFeed.style.display = 'block';
+                videoPlaceholder.style.display = 'none';
+                permissionMessage.style.display = 'none';
+                
+                isCameraActive = true;
+                startCameraBtn.classList.add('active');
+                
+                // Start analytics session
+                analyticsData.sessionStartTime = new Date();
+                
+                console.log('Camera started successfully');
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                showPermissionMessage();
+            }
+        }
+        
+        // Stop camera
+        function stopCamera() {
+            if (videoStream) {
+                const tracks = videoStream.getTracks();
+                tracks.forEach(track => track.stop());
+                videoStream = null;
+            }
+            
+            videoFeed.style.display = 'none';
+            videoPlaceholder.style.display = 'flex';
+            isCameraActive = false;
+            startCameraBtn.classList.remove('active');
+            
+            // Stop recording if active
+            if (isRecording) {
+                stopRecording();
+            }
+            
+            console.log('Camera stopped');
+        }
+        
+        // Show camera permission message
+        function showPermissionMessage() {
+            permissionMessage.style.display = 'block';
+            videoPlaceholder.style.display = 'none';
+        }
+        
+        // Show audio permission message
+        function showAudioPermissionMessage() {
+            audioPermissionMessage.style.display = 'block';
+        }
+        
+        // Hide audio permission message
+        function hideAudioPermissionMessage() {
+            audioPermissionMessage.style.display = 'none';
+        }
+        
+        // Toggle camera
+        function toggleCamera() {
+            if (isCameraActive) {
+                stopCamera();
+            } else {
+                startCamera();
+            }
+        }
+        
+        // Toggle audio
+        function toggleAudio() {
+            if (isAudioActive) {
+                stopAudio();
+            } else {
+                startAudio();
+            }
+        }
+        
+        // Start audio analysis (AUDIO ONLY)
+        async function startAudio() {
+            try {
+                // Request microphone access (audio only)
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: false,
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                // Set up audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(audioStream);
+                javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+                
+                analyser.smoothingTimeConstant = 0.8;
+                analyser.fftSize = 1024;
+                
+                microphone.connect(analyser);
+                analyser.connect(javascriptNode);
+                javascriptNode.connect(audioContext.destination);
+                
+                javascriptNode.onaudioprocess = function() {
+                    const array = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteFrequencyData(array);
+                    
+                    let values = 0;
+                    const length = array.length;
+                    
+                    for (let i = 0; i < length; i++) {
+                        values += array[i];
+                    }
+                    
+                    const average = values / length;
+                    
+                    // Update audio level indicator
+                    const level = Math.min(100, Math.max(0, average * 100 / 128));
+                    audioLevelFill.style.width = level + '%';
+                    
+                    // Change color based on level
+                    if (level > 70) {
+                        audioLevelFill.style.background = '#F44336'; // Red for high level
+                    } else if (level > 40) {
+                        audioLevelFill.style.background = '#FFC107'; // Yellow for medium level
+                    } else {
+                        audioLevelFill.style.background = '#36D1DC'; // Blue for low level
+                    }
+                };
+                
+                isAudioActive = true;
+                toggleAudioBtn.classList.add('active');
+                audioIndicator.style.display = 'flex';
+                hideAudioPermissionMessage();
+                
+                console.log('Audio analysis started');
+            } catch (error) {
+                console.error('Error starting audio analysis:', error);
+                showAudioPermissionMessage();
+            }
+        }
+        
+        // Stop audio analysis
+        function stopAudio() {
+            if (javascriptNode) {
+                javascriptNode.disconnect();
+                javascriptNode = null;
+            }
+            
+            if (microphone) {
+                microphone.disconnect();
+                microphone = null;
+            }
+            
+            if (analyser) {
+                analyser.disconnect();
+                analyser = null;
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            if (audioStream) {
+                const tracks = audioStream.getTracks();
+                tracks.forEach(track => track.stop());
+                audioStream = null;
+            }
+            
+            isAudioActive = false;
+            toggleAudioBtn.classList.remove('active');
+            toggleAudioBtn.classList.remove('muted');
+            audioIndicator.style.display = 'none';
+            audioLevelFill.style.width = '0%';
+            
+            console.log('Audio analysis stopped');
+        }
+        
+        // Recording functionality
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+        
+        async function startRecording() {
+            if (!isCameraActive) {
+                alert('Please start the camera first to begin recording.');
+                return;
+            }
+            
+            try {
+                // Combine video and audio streams if both are available
+                let combinedStream = videoStream;
+                if (isAudioActive && audioStream) {
+                    combinedStream = new MediaStream([
+                        ...videoStream.getVideoTracks(),
+                        ...audioStream.getAudioTracks()
+                    ]);
+                }
+                
+                // Create media recorder
+                mediaRecorder = new MediaRecorder(combinedStream, {
+                    mimeType: 'video/webm;codecs=vp9,opus'
+                });
+                
+                recordedChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Create recording object
+                    const recording = {
+                        id: Date.now(),
+                        name: `Session_${new Date().toISOString().replace(/[:.]/g, '_')}`,
+                        url: url,
+                        duration: Math.floor((Date.now() - recordingStartTime) / 1000),
+                        date: new Date().toLocaleDateString(),
+                        timestamp: new Date().toLocaleTimeString()
+                    };
+                    
+                    recordings.unshift(recording);
+                    updateRecordingList();
+                    
+                    // Create download link
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${recording.name}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                };
+                
+                // Start recording
+                mediaRecorder.start(1000); // Collect data every second
+                isRecording = true;
+                recordSessionBtn.classList.add('recording');
+                recordingIndicator.style.display = 'flex';
+                recordingStartTime = Date.now();
+                
+                // Start recording timer
+                startRecordingTimer();
+                
+                // Start image capture for AI processing
+                startImageCapture();
+                
+                console.log('Recording started with image capture');
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                alert('Error starting recording. Please check your browser permissions.');
+            }
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordSessionBtn.classList.remove('recording');
+                recordingIndicator.style.display = 'none';
+                
+                // Stop recording timer
+                clearInterval(recordingTimer);
+                
+                // Stop image capture
+                stopImageCapture();
+                
+                // Clear processing queue
+                processingQueue = [];
+                
+                console.log('Recording stopped');
+            }
+        }
+        
+        function startRecordingTimer() {
+            recordingTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                recordingTime.textContent = `${minutes}:${seconds}`;
+            }, 1000);
+        }
+        
+        function updateRecordingList() {
+            recordingList.innerHTML = '';
+            
+            if (recordings.length === 0) {
+                recordingList.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">No recordings yet</div>';
+                return;
+            }
+            
+            recordings.forEach(recording => {
+                const item = document.createElement('div');
+                item.className = 'recording-item';
+                item.innerHTML = `
+                    <div class="recording-info">
+                        <div class="recording-icon">
+                            <i class="fas fa-video"></i>
+                        </div>
+                        <div class="recording-details">
+                            <div class="recording-name">${recording.name}</div>
+                            <div class="recording-meta">Duration: ${formatTime(recording.duration)} | Date: ${recording.date} ${recording.timestamp}</div>
+                        </div>
+                    </div>
+                    <div class="recording-actions">
+                        <button class="action-btn" title="Play" onclick="playRecording('${recording.id}')">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="action-btn" title="Download" onclick="downloadRecording('${recording.id}')">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="action-btn" title="Delete" onclick="deleteRecording('${recording.id}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                recordingList.appendChild(item);
+            });
+        }
+        
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${minutes}:${secs}`;
+        }
+        
+        function playRecording(id) {
+            const recording = recordings.find(r => r.id == id);
+            if (recording) {
+                window.open(recording.url, '_blank');
+            }
+        }
+        
+        function downloadRecording(id) {
+            const recording = recordings.find(r => r.id == id);
+            if (recording) {
+                const a = document.createElement('a');
+                a.href = recording.url;
+                a.download = `${recording.name}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        }
+        
+        function deleteRecording(id) {
+            if (confirm('Are you sure you want to delete this recording?')) {
+                recordings = recordings.filter(r => r.id != id);
+                updateRecordingList();
+            }
+        }
+        
+        function deleteAllRecordings() {
+            if (recordings.length === 0) return;
+            
+            if (confirm('Are you sure you want to delete all recordings?')) {
+                recordings = [];
+                updateRecordingList();
+            }
+        }
+        
+        function showRecordingModal() {
+            updateRecordingList();
+            recordingModal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function hideRecordingModal() {
+            recordingModal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Fullscreen functionality
+        function toggleFullscreen() {
+            if (!isFullscreen) {
+                enterFullscreen();
+            } else {
+                exitFullscreen();
+            }
+        }
+        
+        function enterFullscreen() {
+            if (videoContainer.requestFullscreen) {
+                videoContainer.requestFullscreen();
+            } else if (videoContainer.webkitRequestFullscreen) {
+                videoContainer.webkitRequestFullscreen();
+            } else if (videoContainer.msRequestFullscreen) {
+                videoContainer.msRequestFullscreen();
+            }
+            
+            videoContainer.classList.add('fullscreen');
+            exitFullscreenBtn.style.display = 'flex';
+            fullscreenBtn.classList.add('active');
+            isFullscreen = true;
+        }
+        
+        function exitFullscreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+            
+            videoContainer.classList.remove('fullscreen');
+            exitFullscreenBtn.style.display = 'none';
+            fullscreenBtn.classList.remove('active');
+            isFullscreen = false;
+        }
+        
+        // Handle fullscreen change events
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('msfullscreenchange', handleFullscreenChange);
+        
+        function handleFullscreenChange() {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                videoContainer.classList.remove('fullscreen');
+                exitFullscreenBtn.style.display = 'none';
+                fullscreenBtn.classList.remove('active');
+                isFullscreen = false;
+            }
+        }
+        
+        // Show analytics modal
+        function showAnalytics() {
+            updateAnalyticsData();
+            analyticsModal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        // Hide analytics modal
+        function hideAnalytics() {
+            analyticsModal.style.display = 'none';
+            document.body.style.overflow = 'auto';
+            // Remove active class from analytics button when modal is closed
+            analyzeModeBtn.classList.remove('active');
+        }
+        
+        // Update analytics data
+        function updateAnalyticsData() {
+            // Update session duration
+            if (analyticsData.sessionStartTime) {
+                const duration = Math.floor((new Date() - analyticsData.sessionStartTime) / 60000);
+                document.getElementById('session-duration').textContent = `${duration}m`;
+            }
+            
+            // Update total detections
+            document.getElementById('total-detections').textContent = analyticsData.totalDetections;
+            
+            // Calculate dominant emotion
+            let dominantEmotion = 'None';
+            let maxCount = 0;
+            
+            for (const emotion in analyticsData.emotionCounts) {
+                if (analyticsData.emotionCounts[emotion] > maxCount) {
+                    maxCount = analyticsData.emotionCounts[emotion];
+                    dominantEmotion = emotion;
+                }
+            }
+            
+            document.getElementById('dominant-emotion').textContent = dominantEmotion;
+            
+            // Calculate average confidence
+            let totalConfidence = 0;
+            let confidenceCount = 0;
+            
+            for (const emotion in analyticsData.emotionConfidences) {
+                const confidences = analyticsData.emotionConfidences[emotion];
+                if (confidences.length > 0) {
+                    totalConfidence += confidences.reduce((a, b) => a + b, 0);
+                    confidenceCount += confidences.length;
+                }
+            }
+            
+            const avgConfidence = confidenceCount > 0 ? Math.round(totalConfidence / confidenceCount) : 0;
+            document.getElementById('avg-confidence').textContent = `${avgConfidence}%`;
+            
+            // Update emotion data table
+            const tableBody = document.getElementById('emotion-data-table');
+            tableBody.innerHTML = '';
+            
+            emotions.forEach(emotion => {
+                const count = analyticsData.emotionCounts[emotion];
+                const confidences = analyticsData.emotionConfidences[emotion];
+                const avgConf = confidences.length > 0 ? 
+                    Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
+                const duration = Math.round(count * 3 / 60); // Assuming 3 seconds per detection
+                const peakValue = confidences.length > 0 ? Math.max(...confidences) : 0;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <i class="${emotionIcons[emotion]}" style="color: ${emotionColors[emotion]}; margin-right: 8px;"></i>
+                        ${emotion}
+                    </td>
+                    <td>${count}</td>
+                    <td>${avgConf}%</td>
+                    <td>${duration}m</td>
+                    <td>${peakValue}%</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // Update charts
+            updateCharts();
+        }
+        
+        // Update analytics charts
+        function updateCharts() {
+            // Emotion Distribution Chart (Pie)
+            const distributionCtx = document.getElementById('emotion-distribution-chart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (window.emotionDistributionChart) {
+                window.emotionDistributionChart.destroy();
+            }
+            
+            const distributionData = emotions.map(emotion => analyticsData.emotionCounts[emotion]);
+            const distributionColors = emotions.map(emotion => emotionColors[emotion]);
+            
+            window.emotionDistributionChart = new Chart(distributionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: emotions,
+                    datasets: [{
+                        data: distributionData,
+                        backgroundColor: distributionColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#FFFFFF',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Emotion Trends Chart (Line)
+            const trendsCtx = document.getElementById('emotion-trends-chart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (window.emotionTrendsChart) {
+                window.emotionTrendsChart.destroy();
+            }
+            
+            // Generate sample time data (last 10 minutes)
+            const timeLabels = [];
+            for (let i = 9; i >= 0; i--) {
+                timeLabels.push(`${i} min ago`);
+            }
+            
+            // Generate sample trend data
+            const trendDatasets = emotions.slice(0, 4).map(emotion => {
+                return {
+                    label: emotion,
+                    data: Array(10).fill(0).map(() => Math.floor(Math.random() * 100)),
+                    borderColor: emotionColors[emotion],
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    pointRadius: 3
+                };
+            });
+            
+            window.emotionTrendsChart = new Chart(trendsCtx, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: trendDatasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#B8B8D1'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#B8B8D1'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#FFFFFF'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Time Analysis Chart (Bar)
+            const timeCtx = document.getElementById('time-analysis-chart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (window.timeAnalysisChart) {
+                window.timeAnalysisChart.destroy();
+            }
+            
+            // Generate sample time distribution data
+            const timeData = emotions.map(emotion => Math.floor(Math.random() * 30) + 10);
+            
+            window.timeAnalysisChart = new Chart(timeCtx, {
+                type: 'bar',
+                data: {
+                    labels: emotions,
+                    datasets: [{
+                        label: 'Minutes',
+                        data: timeData,
+                        backgroundColor: emotions.map(emotion => emotionColors[emotion]),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#B8B8D1'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#B8B8D1',
+                                maxRotation: 45
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Export data function
+        function exportData() {
+            // In a real application, this would generate a CSV or JSON file
+            alert('Data export functionality would be implemented here. This would generate a CSV file with all analytics data.');
+        }
+        
+        // Generate report function
+        function generateReport() {
+            // In a real application, this would generate a PDF report
+            alert('Report generation functionality would be implemented here. This would create a PDF report with analytics insights.');
+        }
+        
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize capture canvas
+            initCaptureCanvas();
+            
+            // Camera control
+            startCameraBtn.addEventListener('click', toggleCamera);
+            retryCameraBtn.addEventListener('click', startCamera);
+            
+            // Audio control
+            toggleAudioBtn.addEventListener('click', toggleAudio);
+            retryAudioBtn.addEventListener('click', startAudio);
+            
+            // Recording control
+            recordSessionBtn.addEventListener('click', toggleRecording);
+            recordSessionBtn.addEventListener('dblclick', showRecordingModal);
+            
+            // Recording modal control
+            closeRecordingBtn.addEventListener('click', hideRecordingModal);
+            deleteAllRecordingsBtn.addEventListener('click', deleteAllRecordings);
+            openRecordingsFolderBtn.addEventListener('click', () => {
+                alert('In a real application, this would open the recordings folder.');
+            });
+            
+            // Fullscreen control
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            exitFullscreenBtn.addEventListener('click', exitFullscreen);
+            
+            // Analytics modal control
+            analyzeModeBtn.addEventListener('click', function() {
+                showAnalytics();
+                // Analytics button should NOT stay active - remove active class
+                this.classList.remove('active');
+            });
+            
+            closeAnalyticsBtn.addEventListener('click', hideAnalytics);
+            exportDataBtn.addEventListener('click', exportData);
+            generateReportBtn.addEventListener('click', generateReport);
+            
+            // Close modals when clicking outside
+            recordingModal.addEventListener('click', function(e) {
+                if (e.target === recordingModal) {
+                    hideRecordingModal();
+                }
+            });
+            
+            analyticsModal.addEventListener('click', function(e) {
+                if (e.target === analyticsModal) {
+                    hideAnalytics();
+                }
+            });
+            
+            // Control button interactions
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // Skip camera, audio, and analytics buttons as they're handled separately
+                    if (this.id !== 'start-camera' && this.id !== 'toggle-audio' && this.id !== 'analyze-mode') {
+                        this.classList.toggle('active');
+                    }
+                    
+                    // Specific actions for each button
+                    const id = this.id;
+                    if (id === 'fullscreen') {
+                        // Fullscreen functionality handled above
+                        console.log('Fullscreen toggled');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
